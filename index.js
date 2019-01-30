@@ -1,6 +1,6 @@
 const electron = require('electron');
 
-const { app, BrowserWindow, Menu } = electron;
+const { app, BrowserWindow, Menu, ipcMain } = electron;
 
 let mainWindow;
 let addWindow;
@@ -8,6 +8,7 @@ let addWindow;
 app.on('ready', () => {
     mainWindow = new BrowserWindow({});
     mainWindow.loadURL(`file://${__dirname}/main.html`);
+    mainWindow.on('closed', () => app.quit());
 
     const mainMenu = Menu.buildFromTemplate(menuTemplate);
     Menu.setApplicationMenu(mainMenu);
@@ -19,17 +20,35 @@ const createAddWindow = () => {
         height: 200,
         title: 'Add New Todo'
     });
-    addWindow.setMenu(null);
+    addWindow.loadURL(`FILE://${__dirname}/add.html`);
+    addWindow.on('closed', () => addWindow = null);
+
+    if(process.env === 'production'){addWindow.setMenu(null)};
 }
 
+const clearTodos = () => {
+    mainWindow.webContents.send('todos:clear');
+}
+
+ipcMain.on('todo:add', (event, todo) => {
+    mainWindow.webContents.send('todo:add', todo);
+    addWindow.close();
+})
+
 const menuTemplate = [
-    {
+    {   
         label: 'File',
         submenu: [
             { 
                 label: 'New Todo',
                 click() {
                     createAddWindow();
+                }
+            },
+            {
+                label: 'Clear Todos',
+                click() {
+                    clearTodos()
                 }
             },
             { label: 'Quit',
@@ -44,4 +63,20 @@ const menuTemplate = [
 
 if (process.platform === 'darwin') {
     menuTemplate.unshift({});
+}
+
+if(process.env.NODE_ENV !== 'production') {
+    menuTemplate.push({
+        label: 'Developer',
+        submenu: [
+            { role: 'Reload' },
+            {
+                label: 'Toggle Developer Tools',
+                accelerator: process.platform === 'darwin'? 'Command+Alt+I': 'Ctrl+Shift+I',
+                click(item, focusedWindow) {
+                    focusedWindow.toggleDevTools();
+                }
+            }
+        ]
+    })
 }
